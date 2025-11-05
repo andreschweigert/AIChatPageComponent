@@ -1,5 +1,8 @@
 <?php
 
+// Start output buffering to prevent any stray output from corrupting JSON response
+ob_start();
+
 use ILIAS\Plugin\pcaic\Model\ChatConfig;
 use ILIAS\Plugin\pcaic\Model\ChatSession;
 use ILIAS\Plugin\pcaic\Model\ChatMessage;
@@ -127,7 +130,7 @@ try {
     }
 
     $action = $data['action'] ?? '';
-    
+
     switch ($action) {
         case 'send_message':
             $result = handleSendMessage($data);
@@ -395,7 +398,7 @@ function handleSendMessage(array $data): array
             }
         }
 
-        
+
         // Initialize AI service
         $llm = createLLMInstance($chatConfig->getAiService());
         $llm->setPrompt($clean_system_prompt);
@@ -485,8 +488,20 @@ function handleSendMessage(array $data): array
         ];
         
     } catch (\Exception $e) {
-        $logger->error("Message sending failed", ['chat_id' => $chat_id, 'error' => $e->getMessage()]);
-        return ['error' => 'Failed to send message'];
+        $logger->error("Message sending failed", [
+            'chat_id' => $chat_id,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        // Return detailed error for debugging
+        return [
+            'error' => 'Failed to send message: ' . $e->getMessage(),
+            'debug' => [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]
+        ];
     }
 }
 
@@ -1534,7 +1549,17 @@ function parseBooleanParam($value): bool
  */
 function sendApiResponse($data, int $httpCode = 200): void
 {
-    http_response_code($httpCode);
+    // Clean ALL output buffers to prevent JSON corruption
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    // Prevent "headers already sent" errors by checking first
+    if (!headers_sent()) {
+        http_response_code($httpCode);
+        header('Content-Type: application/json');
+    }
+
     echo json_encode($data);
     exit();
 }

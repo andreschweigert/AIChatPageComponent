@@ -62,7 +62,20 @@ class ChatConfig
             $this->parentType = $row['parent_type'];
             $this->title = $row['title'] ?? '';
             $this->systemPrompt = $row['system_prompt'] ?? '';
-            $this->aiService = $row['ai_service'] ?? 'ramses';
+
+            // Use global selected_ai_service as fallback if ai_service is not set
+            $default_service = \platform\AIChatPageComponentConfig::get('selected_ai_service') ?: 'openai';
+            $configured_service = $row['ai_service'] ?? $default_service;
+
+            // Validate that the configured service is actually available
+            $available_services = \platform\AIChatPageComponentConfig::get('available_services') ?? [];
+            if (!empty($configured_service) && isset($available_services[$configured_service]) && $available_services[$configured_service] === '1') {
+                $this->aiService = $configured_service;
+            } else {
+                // Fall back to default service if configured service is not available
+                $this->aiService = $default_service;
+            }
+
             $this->maxMemory = (int)$row['max_memory'];
             $this->charLimit = (int)$row['char_limit'];
             
@@ -117,13 +130,20 @@ class ChatConfig
             if (!empty($max_memory)) {
                 $this->maxMemory = (int)$max_memory;
             }
-            
+
+            // Load selected AI service from global configuration
+            $selected_service = \platform\AIChatPageComponentConfig::get('selected_ai_service');
+            if (!empty($selected_service)) {
+                $this->aiService = $selected_service;
+            }
+
             global $DIC;
             $DIC->logger()->comp('pcaic')->debug("Loaded global defaults for new ChatConfig", [
                 'system_prompt_length' => strlen($this->systemPrompt),
                 'disclaimer_length' => strlen($this->disclaimer),
                 'char_limit' => $this->charLimit,
-                'max_memory' => $this->maxMemory
+                'max_memory' => $this->maxMemory,
+                'ai_service' => $this->aiService
             ]);
             
         } catch (\Exception $e) {

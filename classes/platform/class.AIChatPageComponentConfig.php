@@ -30,6 +30,7 @@ class AIChatPageComponentConfig
             'max_memory_messages' => 10,
             'default_disclaimer' => '',
             'disclaimer' => '',
+            'selected_ai_service' => 'openai', // Default to OpenAI
             'available_services' => [
                 'ramses' => '1',
                 'openai' => '1'
